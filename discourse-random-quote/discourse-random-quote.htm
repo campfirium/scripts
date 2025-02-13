@@ -1,0 +1,183 @@
+<script type="text/discourse-plugin" version="0.8">
+  // 全局定义 shuffle 函数，确保后续调用时可用
+  function shuffle(array) {
+    for (var i = array.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var temp = array[i];
+      array[i] = array[j];
+      array[j] = temp;
+    }
+    return array;
+  }
+
+  function insertRandomProverb() {
+    console.log("insertRandomProverb 被调用");
+    var panel = document.querySelector('.topic-list-body');
+    if (!panel) {
+      console.log("未找到 .topic-list-body 元素，延时重试");
+      setTimeout(insertRandomProverb, 300);
+      return;
+    }
+    console.log("找到了 panel:", panel);
+
+    // 移除已存在的金句，避免重复插入
+    var existing = panel.querySelector('.random-proverb');
+    if (existing) {
+      existing.remove();
+      console.log("已移除旧的金句");
+    }
+    
+    // 初始化原始帖子数据（只定义一次）
+    if (!window._postsData) {
+      window._postsData = [
+        {
+          postId: "demoid1",
+          title: "demotitle1",
+          quotes: [
+            "demoquote11",
+            "demoquote12",
+          ]
+        },
+        {
+          postId: "demoid2",
+          title: "demotitle2",
+          quotes: [
+            "demoquote21",
+            "demoquote22",
+          ]
+        },
+      ];
+    }
+    
+    // 如果洗牌数组不存在或为空，则生成洗牌后的金句数组
+    if (!window._shuffledQuotes || window._shuffledQuotes.length === 0) {
+      var combined = [];
+      window._postsData.forEach(function(post) {
+        post.quotes.forEach(function(q) {
+          combined.push({
+            postId: post.postId,
+            title: post.title,
+            quote: q
+          });
+        });
+      });
+      window._shuffledQuotes = shuffle(combined.slice());
+      console.log("已生成洗牌金句数组：", window._shuffledQuotes);
+    }
+    
+    function getNextQuote() {
+      var data = window._shuffledQuotes.shift();
+      if (!data) {
+        var combined = [];
+        window._postsData.forEach(function(post) {
+          post.quotes.forEach(function(q) {
+            combined.push({
+              postId: post.postId,
+              title: post.title,
+              quote: q
+            });
+          });
+        });
+        window._shuffledQuotes = shuffle(combined.slice());
+        data = window._shuffledQuotes.shift();
+      }
+      return data;
+    }
+    
+    var quoteData = getNextQuote();
+    var isMobile = window.innerWidth <= 1024;
+    
+    // 构造公共部分（链接部分）
+    var commonLink = '<a href="/t/' + quoteData.postId + '" class="title raw-link raw-topic-link">' +
+                       quoteData.quote + '……<br><small>✨ ' + quoteData.title + '</small>' +
+                     '</a>';
+    var commonCell = '<td class="main-link clearfix topic-list-data" colspan="1">' +
+                       '<span class="link-top-line" role="heading" aria-level="2">' +
+                         '<span class="topic-statuses"></span>' +
+                         commonLink +
+                       '</span>' +
+                     '</td>';
+    
+    // 如果是 PC 版，则附加额外的单元格；移动版则只用公共单元格
+    var extraCells = "";
+    if (!isMobile) {
+      extraCells =
+        '<td class="posters topic-list-data theme-avatar-small">' +
+          '<a href="/u/system" data-user-card="system" class="latest single">' +
+            '<img alt="" width="24" height="24" src="/" class="avatar latest single" title="system - 原始发帖人、最新发帖人">' +
+          '</a>' +
+        '</td>' +
+        '<td class="num posts-map posts topic-list-data">' +
+          '<a href="/t/' + quoteData.postId + '" class="badge-posts"><span class="number">0</span></a>' +
+        '</td>' +
+        '<td class="num views topic-list-data"><span class="number">0</span></td>' +
+        '<td class="activity num topic-list-data age">' +
+          '<a href="/t/' + quoteData.postId + '" class="post-activity"><span class="relative-date" data-time="1738932033887" data-format="tiny">0m</span></a>' +
+        '</td>';
+    }
+    
+    var rowHTML = '<tr class="random-proverb topic-list-item ' + (isMobile ? '' : 'pc-template') + '">' +
+                    commonCell + extraCells +
+                  '</tr>';
+    
+    panel.insertAdjacentHTML('afterbegin', rowHTML);
+    console.log("金句行已插入");
+  }
+
+  // 初次加载时执行
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    insertRandomProverb();
+  } else {
+    document.addEventListener('DOMContentLoaded', insertRandomProverb);
+  }
+
+  // 尝试使用 MutationObserver 监听较稳定的容器
+  // 这里优先尝试 data-test-id="topic-list"，若找不到则退回 document.body
+  var stableContainer = document.querySelector('[data-test-id="topic-list"]');
+  if (!stableContainer) {
+    console.log("未找到稳定容器 [data-test-id='topic-list']，使用 document.body 作为备用");
+    stableContainer = document.body;
+  }
+  var observer = new MutationObserver(function(mutationsList, observer) {
+    // 检查 .topic-list-body 是否存在且包含金句
+    var panel = document.querySelector('.topic-list-body');
+    if (panel && !panel.querySelector('.random-proverb')) {
+      console.log("MutationObserver 检测到金句缺失，重新插入");
+      insertRandomProverb();
+    }
+  });
+  observer.observe(stableContainer, { childList: true, subtree: true });
+  console.log("MutationObserver 已启动，在稳定容器:", stableContainer);
+</script>
+
+<style>
+  .random-proverb {
+    opacity: 1;
+    text-align: left;
+    margin-top: 10px;
+    padding: 5px;
+  }
+  .random-proverb br {
+    line-height: 1px !important;
+  }
+  .random-proverb .title {
+    opacity: 0.5;
+  }
+  .random-proverb small {
+    margin-top: 0.5em;
+    opacity: 0.7;
+  }
+  /* 移动版：调整单元格内边距 */
+  @media screen and (max-width: 1024px) {
+    .random-proverb > td {
+      padding: 20px 0 !important;
+    }
+    .random-proverb small {
+      float: right;
+    }
+  }
+  /* PC版：取消 <small> 的浮动，保持帖子标题左对齐 */
+  .pc-template small {
+    float: none !important;
+  }
+</style>
